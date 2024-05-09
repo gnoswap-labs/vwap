@@ -46,7 +46,11 @@ func TestFetchTokenPrices(t *testing.T) {
 			},
 		}
 
-		json.NewEncoder(w).Encode(tokenPricesResponse)
+		err := json.NewEncoder(w).Encode(tokenPricesResponse)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}))
 	defer server.Close()
 
@@ -98,8 +102,8 @@ func TestFetchTokenPricesLive(t *testing.T) {
 		t.Fatalf("Failed to fetch token prices: %v", err)
 	}
 
-	if len(prices) == 0 {
-		t.Errorf("Fetched token prices are empty")
+	if len(prices) != 6 {
+		t.Errorf("Expected 6 token prices, got %d", len(prices))
 	}
 
 	for _, price := range prices {

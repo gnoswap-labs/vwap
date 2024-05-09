@@ -1,5 +1,7 @@
 package vwap
 
+const interval = 600
+
 // VWAPData represents the specific token's VWAP data.
 type VWAPData struct {
 	TokenName string  `json:"token_name"` // VWAP data belongs token name
@@ -23,7 +25,7 @@ func init() {
 //   - timestamp: the timestamp of the VWAP value
 func store(tokenName string, vwap float64, timestamp int) {
 	// adjust the timestamp to the 10 minutes interval.
-	adjustedTimestamp := timestamp - (timestamp % 600)
+	adjustedTimestamp := timestamp - (timestamp % interval)
 
 	// get the VWAP data for the token
 	lst, ok := vwapDataMap[tokenName]
