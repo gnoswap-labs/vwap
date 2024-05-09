@@ -20,7 +20,7 @@ const (
 // TradeData represents the data for a single trade.
 type TradeData struct {
 	TokenName string
-	Quantity  float64
+	Volume    float64
 	Ratio     float64
 	Timestamp int
 }
@@ -35,8 +35,8 @@ func VWAP(trades []TradeData) float64 {
 	var numerator, denominator float64
 
 	for _, trade := range trades {
-		numerator += trade.Quantity * trade.Ratio
-		denominator += trade.Quantity
+		numerator += trade.Volume * trade.Ratio
+		denominator += trade.Volume
 	}
 
 	// return last price if there is no trade
@@ -46,6 +46,8 @@ func VWAP(trades []TradeData) float64 {
 
 	vwap := numerator / denominator
 	lastPrices[trades[0].TokenName] = vwap // save the last price
+
+	store(trades[0].TokenName, vwap, trades[0].Timestamp)
 
 	return vwap
 }
@@ -73,11 +75,12 @@ func updateTrades(jsonStr string) ([]TradeData, error) {
 
 		// TODO; remove testing logic
 		// testing purpose
+		// TODO: Get volume data by using API
 		tokenName := TokenIdentifier(r.Token)
 		if contains(tradableTokens, tokenName) {
 			trade := TradeData{
 				TokenName: string(tokenName),
-				Quantity:  100,
+				Volume:    100,
 				Ratio:     floatRatio,
 				Timestamp: data.Stat.Timestamp,
 			}

@@ -7,8 +7,10 @@ import (
 )
 
 func TestVWAPWithNoTrades(t *testing.T) {
+	t.Parallel()
+
 	trades := []TradeData{
-		{TokenName: "Token1", Quantity: 0, Ratio: 0, Timestamp: 1621000000},
+		{TokenName: "Token1", Volume: 0, Ratio: 0, Timestamp: 1621000000},
 	}
 
 	lastPrices = map[string]float64{
@@ -24,11 +26,11 @@ func TestVWAPWithNoTrades(t *testing.T) {
 func TestVWAPWith10MinuteInterval(t *testing.T) {
 	// Mock trade data with different timestamps
 	trades := []TradeData{
-		{TokenName: "Token1", Quantity: 100, Ratio: 1.5, Timestamp: 1621000000},
-		{TokenName: "Token1", Quantity: 200, Ratio: 1.8, Timestamp: 1621000180},
-		{TokenName: "Token1", Quantity: 150, Ratio: 1.6, Timestamp: 1621000420},
-		{TokenName: "Token1", Quantity: 300, Ratio: 1.7, Timestamp: 1621000600},
-		{TokenName: "Token1", Quantity: 250, Ratio: 1.9, Timestamp: 1621000900},
+		{TokenName: "Token1", Volume: 100, Ratio: 1.5, Timestamp: 1621000000},
+		{TokenName: "Token1", Volume: 200, Ratio: 1.8, Timestamp: 1621000180},
+		{TokenName: "Token1", Volume: 150, Ratio: 1.6, Timestamp: 1621000420},
+		{TokenName: "Token1", Volume: 300, Ratio: 1.7, Timestamp: 1621000600},
+		{TokenName: "Token1", Volume: 250, Ratio: 1.9, Timestamp: 1621000900},
 	}
 
 	// Calculate VWAP for each 10-minute interval
@@ -72,8 +74,8 @@ func calculateExpectedVWAP(trades []TradeData) float64 {
 	var numerator, denominator float64
 
 	for _, trade := range trades {
-		numerator += trade.Quantity * trade.Ratio
-		denominator += trade.Quantity
+		numerator += trade.Volume * trade.Ratio
+		denominator += trade.Volume
 	}
 
 	if denominator == 0 {
@@ -84,6 +86,8 @@ func calculateExpectedVWAP(trades []TradeData) float64 {
 }
 
 func TestUpdateTrades(t *testing.T) {
+	t.Parallel()
+
 	// Mock the RPC response
 	mockResponse := `{
 		"stat": {
@@ -126,17 +130,17 @@ func TestUpdateTrades(t *testing.T) {
 	assert.Len(t, trades, 6, "Incorrect number of trades returned")
 
 	expectedTrades := []TradeData{
-		{TokenName: string(wugnot), Quantity: 100, Ratio: 1, Timestamp: expectedTimestamp},
-		{TokenName: string(foo), Quantity: 100, Ratio: 1.5281713042, Timestamp: expectedTimestamp},
-		{TokenName: string(qux), Quantity: 100, Ratio: 0.7640717751, Timestamp: expectedTimestamp},
-		{TokenName: string(gns), Quantity: 100, Ratio: 2.980939105, Timestamp: expectedTimestamp},
-		{TokenName: string(bar), Quantity: 100, Ratio: 0, Timestamp: expectedTimestamp},
-		{TokenName: string(baz), Quantity: 100, Ratio: 0, Timestamp: expectedTimestamp},
+		{TokenName: string(wugnot), Volume: 100, Ratio: 1, Timestamp: expectedTimestamp},
+		{TokenName: string(foo), Volume: 100, Ratio: 1.5281713042, Timestamp: expectedTimestamp},
+		{TokenName: string(qux), Volume: 100, Ratio: 0.7640717751, Timestamp: expectedTimestamp},
+		{TokenName: string(gns), Volume: 100, Ratio: 2.980939105, Timestamp: expectedTimestamp},
+		{TokenName: string(bar), Volume: 100, Ratio: 0, Timestamp: expectedTimestamp},
+		{TokenName: string(baz), Volume: 100, Ratio: 0, Timestamp: expectedTimestamp},
 	}
 
 	for i, trade := range trades {
 		assert.Equal(t, expectedTrades[i].TokenName, trade.TokenName, "Incorrect token name")
-		assert.Equal(t, expectedTrades[i].Quantity, trade.Quantity, "Incorrect quantity")
+		assert.Equal(t, expectedTrades[i].Volume, trade.Volume, "Incorrect quantity")
 		assert.InDelta(t, expectedTrades[i].Ratio, trade.Ratio, 1e-9, "Incorrect ratio")
 		assert.Equal(t, expectedTrades[i].Timestamp, trade.Timestamp, "Incorrect timestamp")
 	}
