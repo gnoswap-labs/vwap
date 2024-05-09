@@ -21,12 +21,28 @@ jobs:
           go-version: "1.22.x"
 
       - name: Run tests
-        run: go test ./...
+        if: ${{ !inputs.skipTests }}
+        run: go test -v -count=1 -race -shuffle=on -coverprofile=coverage.txt ./...
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
+
+      - name: Go Format
+        run: gofmt -s -w . && git diff --exit-code
+
+      - name: Go Vet
+        run: go vet ./...
+
+      - name: Upload Coverage
+        if: ${{ !inputs.skipTests }} # upload when we really run our tests
+        uses: codecov/codecov-action@v3
+        continue-on-error: true # we don't care if it fails
+        with:
+          token: ${{secrets.CODECOV_TOKEN}} # set in repository settings
+          file: ./coverage.txt # file from the previous step
+          fail_ci_if_error: false
 
   cleanup:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
