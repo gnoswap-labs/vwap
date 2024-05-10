@@ -2,7 +2,11 @@ package vwap
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
+	"math/big"
 	"net/http"
+	"strconv"
 )
 
 const priceEndpoint = "http://dev.api.gnoswap.io/v1/tokens/prices"
@@ -54,4 +58,49 @@ func fetchTokenPrices(endpoint string) ([]TokenPrice, error) {
 	}
 
 	return apiResponse.Data, nil
+}
+
+// calculateVolume calculates the total volume in the USD for each token.
+func calculateVolume(prices []TokenPrice) map[string]float64 {
+	volumeByToken := make(map[string]float64)
+
+	for _, price := range prices {
+		volume, err := strconv.ParseFloat(price.VolumeUSD24h, 64)
+		if err != nil {
+			fmt.Printf("failed to parse volume for token %s: %v\n", price.Path, err)
+		}
+
+		volumeByToken[price.Path] = volume
+	}
+
+	return volumeByToken
+}
+
+// calculateTokenUSDPrices calculates the USD price based on a base token (wugnot) price and token ratios.
+func calculateTokenUSDPrices(tokenData *TokenData, baseTokenPrice float64) map[string]float64 {
+	tokenPrices := make(map[string]float64)
+	baseRatio := new(big.Float)
+
+	// fund the base token ratio
+	for _, token := range tokenData.TokenRatio {
+		if token.TokenName == string(wugnot) {
+			ratio, _ := new(big.Float).SetString(token.Ratio)
+			baseRatio.Quo(ratio, big.NewFloat(math.Pow(2, 96)))
+			break
+		}
+	}
+
+	// calculate token prices based on the base token price and ratios.
+	for _, token := range tokenData.TokenRatio {
+		if token.TokenName != string(wugnot) {
+			ratio, _ := new(big.Float).SetString(token.Ratio)
+			tokenRatio := new(big.Float).Quo(ratio, big.NewFloat(math.Pow(2, 96)))
+			tokenPrice := new(big.Float).Quo(baseRatio, tokenRatio)
+
+			price, _ := tokenPrice.Float64()
+			tokenPrices[token.TokenName] = price * baseTokenPrice
+		}
+	}
+
+	return tokenPrices
 }
