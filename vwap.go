@@ -1,20 +1,19 @@
 package vwap
 
-import (
-	"fmt"
-	"math/big"
-)
+import "fmt"
+
+const priceEndpoint = "http://dev.api.gnoswap.io/v1/tokens/prices"
 
 // Token name
 type TokenIdentifier string
 
 const (
-	wugnot TokenIdentifier = "gno.land/r/demo/wugnot" // base token (ratio = 1)
-	foo    TokenIdentifier = "gno.land/r/demo/foo"
-	bar    TokenIdentifier = "gno.land/r/demo/bar"
-	baz    TokenIdentifier = "gno.land/r/demo/baz"
-	qux    TokenIdentifier = "gno.land/r/demo/qux"
-	gns    TokenIdentifier = "gno.land/r/demo/gns"
+	WUGNOT TokenIdentifier = "gno.land/r/demo/wugnot" // base token (ratio = 1)
+	FOO    TokenIdentifier = "gno.land/r/demo/foo"
+	BAR    TokenIdentifier = "gno.land/r/demo/bar"
+	BAZ    TokenIdentifier = "gno.land/r/demo/baz"
+	QUX    TokenIdentifier = "gno.land/r/demo/qux"
+	GNS    TokenIdentifier = "gno.land/r/demo/gns"
 )
 
 // TradeData represents the data for a single trade.
@@ -29,10 +28,18 @@ type TradeData struct {
 // This value will be used to show the last price if the token is not traded.
 var lastPrices map[string]float64
 
+func init() {
+	lastPrices = make(map[string]float64)
+}
+
 // VWAP calculates the Volume Weighted Average Price (VWAP) for the given set of trades.
 // It returns the last price if there are no trades.
-func VWAP(trades []TradeData) float64 {
+func VWAP(trades []TradeData) (float64, error) {
 	var numerator, denominator float64
+
+	if len(trades) == 0 {
+		return 0, fmt.Errorf("no trades found")
+	}
 
 	for _, trade := range trades {
 		numerator += trade.Volume * trade.Ratio
@@ -41,7 +48,11 @@ func VWAP(trades []TradeData) float64 {
 
 	// return last price if there is no trade
 	if denominator == 0 {
-		return lastPrices[trades[0].TokenName]
+		lastPrice, ok := lastPrices[trades[0].TokenName]
+		if !ok {
+			return 0, fmt.Errorf("no last price available for token %s", trades[0].TokenName)
+		}
+		return lastPrice, nil
 	}
 
 	vwap := numerator / denominator
@@ -49,54 +60,25 @@ func VWAP(trades []TradeData) float64 {
 
 	store(trades[0].TokenName, vwap, trades[0].Timestamp)
 
-	return vwap
+	return vwap, nil
 }
 
-// updateTrades retrieves and updates the trade data from RPC API.
-// It returns the updated trades and any error that occurred during the process.
-func updateTrades(jsonStr string) ([]TradeData, error) {
-	data, err := unmarshalResponseData(jsonStr)
+func FetchAndCalculateVWAP() (map[string]float64, error) {
+	prices, err := fetchTokenPrices(priceEndpoint)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response data: %v", err)
+		return nil, err
 	}
 
-	tradableTokens := []TokenIdentifier{wugnot, foo, bar, baz, qux, gns}
+	trades := extractTrades(prices)
+	vwapResults := make(map[string]float64)
 
-	var trades []TradeData
-	for _, r := range data.Response {
-		ratio, ok := new(big.Int).SetString(r.Ratio, 10)
-		if !ok {
-			return nil, fmt.Errorf("error converting ratio to big.Int")
+	for tokenName, tradeData := range trades {
+		vwap, err := VWAP(tradeData)
+		if err != nil {
+			return nil, err
 		}
-
-		dvisor := new(big.Int).Exp(big.NewInt(2), big.NewInt(96), nil)
-		result := new(big.Float).Quo(new(big.Float).SetInt(ratio), new(big.Float).SetInt(dvisor))
-		floatRatio, _ := result.Float64()
-
-		// TODO; remove testing logic
-		// testing purpose
-		// TODO: Get volume data by using API
-		tokenName := TokenIdentifier(r.Token)
-		if contains(tradableTokens, tokenName) {
-			trade := TradeData{
-				TokenName: string(tokenName),
-				Volume:    100,
-				Ratio:     floatRatio,
-				Timestamp: data.Stat.Timestamp,
-			}
-			trades = append(trades, trade)
-		}
+		vwapResults[tokenName] = vwap
 	}
 
-	return trades, nil
-}
-
-func contains(tokens []TokenIdentifier, name TokenIdentifier) bool {
-	for _, t := range tokens {
-		if t == name {
-			return true
-		}
-	}
-
-	return false
+	return vwapResults, nil
 }

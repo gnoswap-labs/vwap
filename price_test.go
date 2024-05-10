@@ -183,6 +183,11 @@ func TestCalculateTokenPrices(t *testing.T) {
 	baseTokenPrice := 1.0
 	tokenPrices := calculateTokenUSDPrices(mockTokenData, baseTokenPrice)
 
+	// 1 wugnot = 1.0 USD    (base token)
+	// 1 qux    = 1.308 USD
+	// 1 foo    = 0.654 USD
+	// 1 gns    = 0.335 USD
+
 	assert.InDelta(t, 1.3087775685458196, tokenPrices["gno.land/r/demo/qux"], 1e-5)
 	assert.InDelta(t, 0.6543768995349725, tokenPrices["gno.land/r/demo/foo"], 1e-5)
 	assert.InDelta(t, 0.3354647528142011, tokenPrices["gno.land/r/demo/gns"], 1e-5)

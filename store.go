@@ -12,7 +12,6 @@ type VWAPData struct {
 var vwapDataMap map[string][]VWAPData
 
 func init() {
-	lastPrices = make(map[string]float64)
 	vwapDataMap = make(map[string][]VWAPData)
 }
 
