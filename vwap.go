@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
+
+	"gorm.io/gorm"
 )
 
 // Token name
@@ -29,7 +32,7 @@ type TradeData struct {
 // lastPrices stores the last price of each token.
 // This value will be used to show the last price if the token is not traded.
 var (
-	lastPrices map[string]float64
+	lastPrices      map[string]float64
 	lastPricesMutex sync.Mutex
 )
 
@@ -37,7 +40,10 @@ func init() {
 	lastPrices = make(map[string]float64)
 }
 
-func VWAP() (map[string]float64, error) {
+func VWAP(db *gorm.DB) (map[string]float64, error) {
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
+	}
 	prices, err := fetchTokenPrices(priceEndpoint)
 	if err != nil {
 		return nil, err
@@ -48,7 +54,7 @@ func VWAP() (map[string]float64, error) {
 	vwapResults := make(map[string]float64)
 
 	var (
-		wg sync.WaitGroup
+		wg    sync.WaitGroup
 		mutex sync.Mutex
 	)
 
@@ -56,7 +62,7 @@ func VWAP() (map[string]float64, error) {
 		wg.Add(1)
 		go func(tokenName string, tradeData []TradeData) {
 			defer wg.Done()
-			res, err := calculateVWAP(tradeData)
+			res, err := calculateVWAP(db, tradeData)
 			if err != nil {
 				log.Printf("failed to calculate VWAP for token %s: %v\n", tokenName, err)
 				return
@@ -74,7 +80,7 @@ func VWAP() (map[string]float64, error) {
 
 // calculateVWAP calculates the Volume Weighted Average Price (calculateVWAP) for the given set of trades.
 // It returns the last price if there are no trades.
-func calculateVWAP(trades []TradeData) (float64, error) {
+func calculateVWAP(db *gorm.DB, trades []TradeData) (float64, error) {
 	var numerator, denominator float64
 
 	if len(trades) == 0 {
@@ -102,7 +108,13 @@ func calculateVWAP(trades []TradeData) (float64, error) {
 	lastPrices[trades[0].TokenName] = vwap // save the last price
 	lastPricesMutex.Unlock()
 
-	store(trades[0].TokenName, vwap, trades[0].Timestamp)
+	totalVolume := denominator
+	calculatedAt := time.Now()
+
+	err := store(db, trades[0].TokenName, vwap, totalVolume, calculatedAt)
+	if err != nil {
+		return 0, fmt.Errorf("failed to store data: %v", err)
+	}
 
 	return vwap, nil
 }

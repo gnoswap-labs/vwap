@@ -1,47 +1,65 @@
 package vwap
 
-const interval = 600
+import (
+	"fmt"
+	"math/rand"
+	"time"
 
-// VWAPData represents the specific token's VWAP data.
+	"github.com/bxcodec/faker/v3"
+	_ "github.com/go-sql-driver/mysql"
+	"gorm.io/gorm"
+)
+
+/* Schema:
+* CREATE TABLE vwap_data (
+*     id SERIAL PRIMARY KEY,
+*     token_name VARCHAR(50) NOT NULL,
+*     calculated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+*     vwap DECIMAL(20, 10) NOT NULL,
+*     total_volume DECIMAL(20, 10) NOT NULL
+* );
+ */
+
 type VWAPData struct {
-	TokenName string  `json:"token_name"` // VWAP data belongs token name
-	VWAP      float64 `json:"vwap"`       // calculated VWAP value
-	Timestamp int     `json:"timestamp"`  // timestamp of the VWAP value (UNIX, 10 min interval)
+	gorm.Model
+	TokenName    string
+	VWAP         float64
+	TotalVolume  float64
+	CalculatedAt time.Time
 }
 
-var vwapDataMap map[string][]VWAPData
-
-func init() {
-	vwapDataMap = make(map[string][]VWAPData)
-}
-
-// store stores the VWAP data for the token or updates the existing data.
-//
-// Parameters:
-//
-//   - tokenName: the token name
-//   - vwap: the VWAP value to store
-//   - timestamp: the timestamp of the VWAP value
-func store(tokenName string, vwap float64, timestamp int) {
-	// adjust the timestamp to the 10 minutes interval.
-	adjustedTimestamp := timestamp - (timestamp % interval)
-
-	// get the VWAP data for the token
-	lst, ok := vwapDataMap[tokenName]
-	if !ok {
-		lst = []VWAPData{}
+func store(db *gorm.DB, tokenName string, vwap, totalVolume float64, calculatedAt time.Time) error {
+	vwapData := VWAPData{
+		TokenName:    tokenName,
+		VWAP:         vwap,
+		TotalVolume:  totalVolume,
+		CalculatedAt: calculatedAt,
 	}
 
-	// check last VWAP data for the list
-	if len(lst) > 0 {
-		last := lst[len(lst)-1]
-		if last.Timestamp == adjustedTimestamp {
-			last.VWAP = vwap
-			vwapDataMap[tokenName] = lst
-			return
+	result := db.Create(&vwapData)
+	if result.Error != nil {
+		return fmt.Errorf("failed to insert data: %v", result.Error)
+	}
+
+	return nil
+}
+
+// testing purpose only
+
+func PopulateVWAPData(db *gorm.DB, count int) error {
+	for i := 0; i < count; i++ {
+		vwapData := VWAPData{
+			TokenName:    faker.Currency(),
+			VWAP:         rand.Float64(),
+			TotalVolume:  rand.Float64(),
+			CalculatedAt: time.Now().Add(time.Duration(rand.Intn(1000)) * time.Minute),
+		}
+
+		result := db.Create(&vwapData)
+		if result.Error != nil {
+			return fmt.Errorf("failed to insert data: %v", result.Error)
 		}
 	}
 
-	lst = append(lst, VWAPData{tokenName, vwap, adjustedTimestamp})
-	vwapDataMap[tokenName] = lst
+	return nil
 }

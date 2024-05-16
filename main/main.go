@@ -3,32 +3,37 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/gnoswap-labs/vwap"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-// testing purposes
-
 func main() {
-	start := time.Now().Unix()
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	db, err := gorm.Open(sqlite.Open("vwap.db"), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("failed to connect database: %v", err)
+	}
 
-	for range ticker.C {
-		<-ticker.C
-		vwapResults, err := vwap.VWAP()
-		if err != nil {
-			log.Printf("Failed to calculate VWAP: %v", err)
-			continue
-		}
+	err = db.AutoMigrate(&vwap.VWAPData{})
+	if err != nil {
+		log.Fatalf("failed to migrate database: %v", err)
+	}
 
-		fmt.Println("VWAP Results:")
-		for token, vwap := range vwapResults {
-			fmt.Printf("%s: %.8f\n", token, vwap)
-		}
+	err = vwap.PopulateVWAPData(db, 10)
+	if err != nil {
+		log.Fatalf("failed to populate vwap data: %v", err)
+	}
 
-		fmt.Println(time.Now().Unix() - start)
-		fmt.Println("--------------------")
+	var VWAPDataList []vwap.VWAPData
+	result := db.Find(&VWAPDataList)
+	if result.Error != nil {
+		log.Fatalf("failed to retrieve vwap data: %v", result.Error)
+	}
+
+	for _, VWAPData := range VWAPDataList {
+		fmt.Printf("TokenName: %s, VWAP: %.2f, TotalVolume: %.2f, CalculatedAt: %s\n",
+			VWAPData.TokenName, VWAPData.VWAP, VWAPData.TotalVolume, VWAPData.CalculatedAt)
 	}
 }
