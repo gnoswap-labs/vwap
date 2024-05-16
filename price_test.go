@@ -12,7 +12,7 @@ import (
 func TestFetchTokenPrices(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tokenPricesResponse := APIResponse{
+		tokenPricesResponse := PricesResponse{
 			Data: []TokenPrice{
 				{
 					Path: "gno.land/r/demo/bar",

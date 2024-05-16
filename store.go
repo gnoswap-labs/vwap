@@ -44,7 +44,7 @@ func store(db *gorm.DB, tokenName string, vwap, totalVolume float64, calculatedA
 	return nil
 }
 
-// testing purpose only
+// testing purpose
 
 func PopulateVWAPData(db *gorm.DB, count int) error {
 	for i := 0; i < count; i++ {

@@ -40,7 +40,7 @@ type Last7d struct {
 	Price string `json:"price"`
 }
 
-type APIResponse struct {
+type PricesResponse struct {
 	Error json.RawMessage `json:"error"`
 	Data  []TokenPrice    `json:"data"`
 }
@@ -63,17 +63,18 @@ func fetchTokenPrices(endpoint string) ([]TokenPrice, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
-		var apiResponse APIResponse
-		if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
-			log.Printf("Error decoding response: %v\n", err)
-			return nil, err
-		}
-		return apiResponse.Data, nil
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Received non-OK response: %d\n", resp.StatusCode)
+		return nil, fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
 	}
 
-	log.Printf("Received non-OK response: %d\n", resp.StatusCode)
-	return nil, fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
+	var apiResponse PricesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		log.Printf("Error decoding response: %v\n", err)
+		return nil, err
+	}
+
+	return apiResponse.Data, nil
 }
 
 func extractTrades(prices []TokenPrice, volumeByToken map[string]float64) map[string][]TradeData {
