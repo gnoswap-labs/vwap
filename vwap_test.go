@@ -18,7 +18,7 @@ func TestVWAPWithNoTrades(t *testing.T) {
 	}
 
 	expectedVWAP := 1.5
-	actualVWAP, err := VWAP(trades)
+	actualVWAP, err := calculateVWAP(trades)
 
 	assert.Nil(t, err, "Unexpected error")
 	assert.Equal(t, expectedVWAP, actualVWAP, "VWAP calculation with no trades is incorrect")
@@ -48,7 +48,7 @@ func TestVWAPWith10MinuteInterval(t *testing.T) {
 			expectedVWAP := calculateExpectedVWAP(intervalTrades)
 			expectedVWAPs = append(expectedVWAPs, expectedVWAP)
 
-			actualVWAP, err := VWAP(intervalTrades)
+			actualVWAP, err := calculateVWAP(intervalTrades)
 			assert.Nil(t, err, "Unexpected error")
 
 			actualVWAPs = append(actualVWAPs, actualVWAP)
@@ -62,7 +62,7 @@ func TestVWAPWith10MinuteInterval(t *testing.T) {
 	expectedVWAP := calculateExpectedVWAP(intervalTrades)
 	expectedVWAPs = append(expectedVWAPs, expectedVWAP)
 
-	actualVWAP, err := VWAP(intervalTrades)
+	actualVWAP, err := calculateVWAP(intervalTrades)
 	assert.Nil(t, err, "Unexpected error")
 
 	actualVWAPs = append(actualVWAPs, actualVWAP)

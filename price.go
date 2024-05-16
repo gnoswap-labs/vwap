@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
-	"math/big"
 	"net/http"
 	"strconv"
 	"time"
 )
+
+const priceEndpoint = "http://dev.api.gnoswap.io/v1/tokens/prices"
 
 type TokenPrice struct {
 	Path              string       `json:"path"`
@@ -46,9 +46,8 @@ type APIResponse struct {
 }
 
 func fetchTokenPrices(endpoint string) ([]TokenPrice, error) {
-	client := &http.Client{} // Timeout is managed by context
+	client := &http.Client{}
 
-	// Create a context with a 30-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -77,73 +76,24 @@ func fetchTokenPrices(endpoint string) ([]TokenPrice, error) {
 	return nil, fmt.Errorf("received non-OK status code: %d", resp.StatusCode)
 }
 
-// calculateVolume calculates the total volume in the USD for each token.
-func calculateVolume(prices []TokenPrice) map[string]float64 {
-	volumeByToken := make(map[string]float64)
-
-	for _, price := range prices {
-		volume, err := strconv.ParseFloat(price.VolumeUSD24h, 64)
-		if err != nil {
-			fmt.Printf("failed to parse volume for token %s: %v\n", price.Path, err)
-		}
-
-		volumeByToken[price.Path] = volume
-	}
-
-	return volumeByToken
-}
-
-// calculateTokenUSDPrices calculates the USD price based on a base token (wugnot) price and token ratios.
-func calculateTokenUSDPrices(tokenData *TokenData, baseTokenPrice float64) map[string]float64 {
-	tokenPrices := make(map[string]float64)
-	baseRatio := new(big.Float)
-
-	// fund the base token ratio
-	for _, token := range tokenData.TokenRatio {
-		if token.TokenName == string(WUGNOT) {
-			ratio, _ := new(big.Float).SetString(token.Ratio)
-			baseRatio.Quo(ratio, big.NewFloat(math.Pow(2, 96)))
-			break
-		}
-	}
-
-	// calculate token prices based on the base token price and ratios.
-	for _, token := range tokenData.TokenRatio {
-		if token.TokenName != string(WUGNOT) {
-			ratio, _ := new(big.Float).SetString(token.Ratio)
-			tokenRatio := new(big.Float).Quo(ratio, big.NewFloat(math.Pow(2, 96)))
-			tokenPrice := new(big.Float).Quo(baseRatio, tokenRatio)
-
-			price, _ := tokenPrice.Float64()
-			tokenPrices[token.TokenName] = price * baseTokenPrice
-		}
-	}
-
-	return tokenPrices
-}
-
-func extractTrades(prices []TokenPrice) map[string][]TradeData {
+func extractTrades(prices []TokenPrice, volumeByToken map[string]float64) map[string][]TradeData {
 	trades := make(map[string][]TradeData)
 	for _, price := range prices {
-		// calculatedVolume, err := strconv.ParseFloat(price.VolumeUSD24h, 64)
-		// if err != nil {
-		// 	fmt.Printf("Failed to parse volume for token %s: %v\n", price.Path, err)
-		// 	continue
-		// }
 		usd, err := strconv.ParseFloat(price.USD, 64)
 		if err != nil {
 			fmt.Printf("failed to parse USD price for token %s: %v\n", price.Path, err)
 			continue
 		}
 
+		volume, ok := volumeByToken[price.Path]
+		if !ok {
+			fmt.Printf("volume not found for token %s\n", price.Path)
+			continue
+		}
+
 		trades[price.Path] = append(trades[price.Path], TradeData{
 			TokenName: price.Path,
-			// Volume: calculatedVolume,
-
-			// hard coded because current calculated volume always be 0.
-			// therefore, we can't calculate the VWAP correctly.
-			// TODO: remove this hard coded value and use `calculatedVolume` instead.
-			Volume:    100,
+			Volume:    volume,
 			Ratio:     usd,
 			Timestamp: int(time.Now().Unix()),
 		})

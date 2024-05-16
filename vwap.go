@@ -1,8 +1,8 @@
 package vwap
 
-import "fmt"
-
-const priceEndpoint = "http://dev.api.gnoswap.io/v1/tokens/prices"
+import (
+	"fmt"
+)
 
 // Token name
 type TokenIdentifier string
@@ -32,9 +32,30 @@ func init() {
 	lastPrices = make(map[string]float64)
 }
 
-// VWAP calculates the Volume Weighted Average Price (VWAP) for the given set of trades.
+func VWAP() (map[string]float64, error) {
+	prices, err := fetchTokenPrices(priceEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	volumeByToken := calculateVolume(prices)
+	trades := extractTrades(prices, volumeByToken)
+	vwapResults := make(map[string]float64)
+
+	for tokenName, tradeData := range trades {
+		vwap, err := calculateVWAP(tradeData)
+		if err != nil {
+			return nil, err
+		}
+		vwapResults[tokenName] = vwap
+	}
+
+	return vwapResults, nil
+}
+
+// calculateVWAP calculates the Volume Weighted Average Price (calculateVWAP) for the given set of trades.
 // It returns the last price if there are no trades.
-func VWAP(trades []TradeData) (float64, error) {
+func calculateVWAP(trades []TradeData) (float64, error) {
 	var numerator, denominator float64
 
 	if len(trades) == 0 {
@@ -50,7 +71,7 @@ func VWAP(trades []TradeData) (float64, error) {
 	if denominator == 0 {
 		lastPrice, ok := lastPrices[trades[0].TokenName]
 		if !ok {
-			return 0, fmt.Errorf("no last price available for token %s", trades[0].TokenName)
+			return 0, nil
 		}
 		return lastPrice, nil
 	}
@@ -61,24 +82,4 @@ func VWAP(trades []TradeData) (float64, error) {
 	store(trades[0].TokenName, vwap, trades[0].Timestamp)
 
 	return vwap, nil
-}
-
-func FetchAndCalculateVWAP() (map[string]float64, error) {
-	prices, err := fetchTokenPrices(priceEndpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	trades := extractTrades(prices)
-	vwapResults := make(map[string]float64)
-
-	for tokenName, tradeData := range trades {
-		vwap, err := VWAP(tradeData)
-		if err != nil {
-			return nil, err
-		}
-		vwapResults[tokenName] = vwap
-	}
-
-	return vwapResults, nil
 }

@@ -1,8 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"sort"
 	"time"
 
 	"github.com/gnoswap-labs/vwap"
@@ -11,33 +11,24 @@ import (
 // testing purposes
 
 func main() {
-	interval := time.Minute
-	ticker := time.NewTicker(interval)
+	start := time.Now().Unix()
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	calculateAndPrintVWAP()
-
 	for range ticker.C {
-		calculateAndPrintVWAP()
-	}
-}
+		<-ticker.C
+		vwapResults, err := vwap.VWAP()
+		if err != nil {
+			log.Printf("Failed to calculate VWAP: %v", err)
+			continue
+		}
 
-func calculateAndPrintVWAP() {
-	vwapResults, err := vwap.FetchAndCalculateVWAP()
-	if err != nil {
-		log.Printf("Error fetching and calculating VWAP: %v\n", err)
-		return
-	}
+		fmt.Println("VWAP Results:")
+		for token, vwap := range vwapResults {
+			fmt.Printf("%s: %.8f\n", token, vwap)
+		}
 
-	var tokens []string
-	for token := range vwapResults {
-		tokens = append(tokens, token)
-	}
-	sort.Strings(tokens)
-
-	log.Println("VWAP results updated at", time.Now().Format("15:04:05"))
-
-	for _, token := range tokens {
-		log.Printf("Token: %s, VWAP: %.4f\n", token, vwapResults[token])
+		fmt.Println(time.Now().Unix() - start)
+		fmt.Println("--------------------")
 	}
 }

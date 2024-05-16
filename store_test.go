@@ -13,7 +13,7 @@ func TestVWAPStorage(t *testing.T) {
 	trades := generateMockTrades()
 
 	for _, trade := range trades {
-		VWAP([]TradeData{trade})
+		calculateVWAP([]TradeData{trade})
 	}
 
 	expectedVWAPData := map[string][]VWAPData{
