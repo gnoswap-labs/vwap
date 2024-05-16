@@ -2,6 +2,8 @@ package vwap
 
 import (
 	"fmt"
+	"log"
+	"sync"
 )
 
 // Token name
@@ -26,7 +28,10 @@ type TradeData struct {
 
 // lastPrices stores the last price of each token.
 // This value will be used to show the last price if the token is not traded.
-var lastPrices map[string]float64
+var (
+	lastPrices map[string]float64
+	lastPricesMutex sync.Mutex
+)
 
 func init() {
 	lastPrices = make(map[string]float64)
@@ -42,13 +47,27 @@ func VWAP() (map[string]float64, error) {
 	trades := extractTrades(prices, volumeByToken)
 	vwapResults := make(map[string]float64)
 
+	var (
+		wg sync.WaitGroup
+		mutex sync.Mutex
+	)
+
 	for tokenName, tradeData := range trades {
-		vwap, err := calculateVWAP(tradeData)
-		if err != nil {
-			return nil, err
-		}
-		vwapResults[tokenName] = vwap
+		wg.Add(1)
+		go func(tokenName string, tradeData []TradeData) {
+			defer wg.Done()
+			res, err := calculateVWAP(tradeData)
+			if err != nil {
+				log.Printf("failed to calculate VWAP for token %s: %v\n", tokenName, err)
+				return
+			}
+			mutex.Lock()
+			vwapResults[tokenName] = res
+			mutex.Unlock()
+		}(tokenName, tradeData)
 	}
+
+	wg.Wait()
 
 	return vwapResults, nil
 }
@@ -69,7 +88,9 @@ func calculateVWAP(trades []TradeData) (float64, error) {
 
 	// return last price if there is no trade
 	if denominator == 0 {
+		lastPricesMutex.Lock()
 		lastPrice, ok := lastPrices[trades[0].TokenName]
+		lastPricesMutex.Unlock()
 		if !ok {
 			return 0, nil
 		}
@@ -77,7 +98,9 @@ func calculateVWAP(trades []TradeData) (float64, error) {
 	}
 
 	vwap := numerator / denominator
+	lastPricesMutex.Lock()
 	lastPrices[trades[0].TokenName] = vwap // save the last price
+	lastPricesMutex.Unlock()
 
 	store(trades[0].TokenName, vwap, trades[0].Timestamp)
 
