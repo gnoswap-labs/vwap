@@ -70,9 +70,14 @@ func calculatePriceHistory(transactions []Transaction, initialPrices map[string]
 		currentPrices[token] = price
 	}
 
-	start := transactions[0].time
+	if len(transactions) == 0 {
+		return priceHistory
+	}
 
-	for current := start; current.Before(transactions[len(transactions)-1].time); current = current.Add(10 * time.Minute) {
+	start := roundTimeToNearestTenMinutes(transactions[0].time)
+
+	lastIndex := len(transactions) - 1
+	for current := start; current.Before(transactions[lastIndex].time); current = current.Add(10 * time.Minute) {
 		for _, tx := range transactions {
 			if tx.time.Before(current.Add(10 * time.Minute)) {
 				updatePrices(tx, currentPrices)
@@ -113,7 +118,7 @@ func calculateVolumeHistory(transactions []Transaction) []VolumeEntry {
 	var volumeHistory []VolumeEntry
 	currentVolumes := make(map[string]int)
 
-	start := transactions[0].time
+	start := roundTimeToNearestTenMinutes(transactions[0].time)
 
 	for current := start; current.Before(transactions[len(transactions)-1].time); current = current.Add(10 * time.Minute) {
 		for _, tx := range transactions {
@@ -149,6 +154,12 @@ func calculateVWAP(token string, transactions []Transaction, currentTime time.Ti
 	}
 
 	return totalValue / float64(totalVolume)
+}
+
+func roundTimeToNearestTenMinutes(t time.Time) time.Time {
+	minute := t.Minute()
+	roundedMinute := minute - minute%10
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), roundedMinute, 0, 0, t.Location())
 }
 
 func copyMap(original map[string]float64) map[string]float64 {
