@@ -77,7 +77,7 @@ func calculatePriceHistory(transactions []Transaction, initialPrices map[string]
 	start := roundTimeToNearestTenMinutes(transactions[0].time)
 
 	lastIndex := len(transactions) - 1
-	for current := start; current.Before(transactions[lastIndex].time); current = current.Add(10 * time.Minute) {
+	for current := start; current.Before(transactions[lastIndex].time.Add(10 * time.Minute)); current = current.Add(10 * time.Minute) {
 		for _, tx := range transactions {
 			if tx.time.Before(current.Add(10 * time.Minute)) {
 				updatePrices(tx, currentPrices)
@@ -89,29 +89,30 @@ func calculatePriceHistory(transactions []Transaction, initialPrices map[string]
 	return priceHistory
 }
 
+// use cross rate to update prices
 func updatePrices(tx Transaction, prices map[string]float64) {
-	var exchangeRate float64
-	if tx.token0Path == "gno.land/r/demo/wugnot" || tx.token1Path == "gno.land/r/demo/wugnot" {
-		if tx.token0Path == "gno.land/r/demo/wugnot" {
-			exchangeRate = float64(tx.amount0) / float64(-tx.amount1)
-			prices[tx.token1Path] = prices[tx.token0Path] / exchangeRate
-		} else {
-			exchangeRate = float64(-tx.amount1) / float64(tx.amount0)
-			prices[tx.token0Path] = prices[tx.token1Path] * exchangeRate
-		}
-	} else if tx.token0Path == "gno.land/r/demo/gns" || tx.token1Path == "gno.land/r/demo/gns" {
-		if tx.token0Path == "gno.land/r/demo/gns" {
-			exchangeRate = float64(tx.amount0) / float64(-tx.amount1)
-			if price, exists := prices["gno.land/r/demo/gns"]; exists && price != 0 {
-				prices[tx.token1Path] = price / exchangeRate
-			}
-		} else {
-			exchangeRate = float64(-tx.amount1) / float64(tx.amount0)
-			if price, exists := prices["gno.land/r/demo/gns"]; exists && price != 0 {
-				prices[tx.token0Path] = price * exchangeRate
-			}
-		}
-	}
+    var exchangeRate float64
+    if tx.token0Path == "gno.land/r/demo/wugnot" {
+        exchangeRate = float64(tx.amount0) / float64(-tx.amount1)
+        prices[tx.token1Path] = 1 / exchangeRate
+    } else if tx.token1Path == "gno.land/r/demo/wugnot" {
+        exchangeRate = float64(-tx.amount1) / float64(tx.amount0)
+        prices[tx.token0Path] = exchangeRate
+    }
+
+    if prices["gno.land/r/demo/gns"] != 0 {
+        if tx.token0Path == "gno.land/r/demo/gns" {
+            exchangeRate = float64(tx.amount0) / float64(-tx.amount1)
+            if _, exists := prices[tx.token1Path]; !exists {
+                prices[tx.token1Path] = prices["gno.land/r/demo/gns"] / exchangeRate
+            }
+        } else if tx.token1Path == "gno.land/r/demo/gns" {
+            exchangeRate = float64(-tx.amount1) / float64(tx.amount0)
+            if _, exists := prices[tx.token0Path]; !exists {
+                prices[tx.token0Path] = prices["gno.land/r/demo/gns"] * exchangeRate
+            }
+        }
+    }
 }
 
 func calculateVolumeHistory(transactions []Transaction) []VolumeEntry {
@@ -120,7 +121,8 @@ func calculateVolumeHistory(transactions []Transaction) []VolumeEntry {
 
 	start := roundTimeToNearestTenMinutes(transactions[0].time)
 
-	for current := start; current.Before(transactions[len(transactions)-1].time); current = current.Add(10 * time.Minute) {
+	lastIndex := len(transactions) - 1
+	for current := start; current.Before(transactions[lastIndex].time.Add(10 * time.Minute)); current = current.Add(10 * time.Minute) {
 		for _, tx := range transactions {
 			if tx.time.Before(current.Add(10 * time.Minute)) {
 				currentVolumes[tx.token0Path] += tx.amount0
@@ -134,26 +136,30 @@ func calculateVolumeHistory(transactions []Transaction) []VolumeEntry {
 }
 
 func calculateVWAP(token string, transactions []Transaction, currentTime time.Time) float64 {
-	var totalValue float64
-	var totalVolume int
+    if token == "gno.land/r/demo/wugnot" {
+        return 1.0
+    }
 
-	for _, tx := range transactions {
-		if tx.time.Before(currentTime.Add(10 * time.Minute)) {
-			if tx.token0Path == token {
-				totalValue += float64(tx.amount0) * float64(-tx.amount1) / float64(tx.amount0)
-				totalVolume += tx.amount0
-			} else if tx.token1Path == token {
-				totalValue += float64(-tx.amount1)
-				totalVolume += -tx.amount1
-			}
-		}
-	}
+    var totalValue float64
+    var totalVolume int
 
-	if totalVolume == 0 {
-		return 0
-	}
+    for _, tx := range transactions {
+        if tx.time.Before(currentTime.Add(10 * time.Minute)) {
+            if tx.token0Path == token {
+                totalValue += float64(tx.amount0) * float64(-tx.amount1) / float64(tx.amount0)
+                totalVolume += tx.amount0
+            } else if tx.token1Path == token {
+                totalValue += float64(-tx.amount1) * float64(tx.amount0) / float64(-tx.amount1)
+                totalVolume += -tx.amount1
+            }
+        }
+    }
 
-	return totalValue / float64(totalVolume)
+    if totalVolume == 0 {
+        return 0
+    }
+
+    return totalValue / float64(totalVolume)
 }
 
 func roundTimeToNearestTenMinutes(t time.Time) time.Time {
