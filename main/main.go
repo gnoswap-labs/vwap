@@ -42,11 +42,17 @@ func main() {
 	priceMap["gno.land/r/demo/foo"] = 0.0
 
 	priceHistory := calculatePriceHistory(transactions, priceMap)
+	volumeHistory := calculateVolumeHistory(transactions)
 
-	for _, entry := range priceHistory {
+	for i := 0; i < len(priceHistory); i++ {
+		entry := priceHistory[i]
+		volumeEntry := volumeHistory[i]
+
 		fmt.Printf("Time: %s\n", entry.time.Format(layout))
 		for token, price := range entry.prices {
-			fmt.Printf("%s: $%.4f\n", token, price)
+			volume := volumeEntry.volumes[token]
+			vwap := calculateVWAP(token, transactions, entry.time)
+			fmt.Printf("%s: $%.4f, Volume: %d, VWAP: $%.4f\n", token, price, volume, vwap)
 		}
 		fmt.Println("-----------")
 	}
@@ -103,8 +109,58 @@ func updatePrices(tx Transaction, prices map[string]float64) {
 	}
 }
 
+func calculateVolumeHistory(transactions []Transaction) []VolumeEntry {
+	var volumeHistory []VolumeEntry
+	currentVolumes := make(map[string]int)
+
+	start := transactions[0].time
+
+	for current := start; current.Before(transactions[len(transactions)-1].time); current = current.Add(10 * time.Minute) {
+		for _, tx := range transactions {
+			if tx.time.Before(current.Add(10 * time.Minute)) {
+				currentVolumes[tx.token0Path] += tx.amount0
+				currentVolumes[tx.token1Path] += -tx.amount1
+			}
+		}
+		volumeHistory = append(volumeHistory, VolumeEntry{time: current, volumes: copyIntMap(currentVolumes)})
+	}
+
+	return volumeHistory
+}
+
+func calculateVWAP(token string, transactions []Transaction, currentTime time.Time) float64 {
+	var totalValue float64
+	var totalVolume int
+
+	for _, tx := range transactions {
+		if tx.time.Before(currentTime.Add(10 * time.Minute)) {
+			if tx.token0Path == token {
+				totalValue += float64(tx.amount0) * float64(-tx.amount1) / float64(tx.amount0)
+				totalVolume += tx.amount0
+			} else if tx.token1Path == token {
+				totalValue += float64(-tx.amount1)
+				totalVolume += -tx.amount1
+			}
+		}
+	}
+
+	if totalVolume == 0 {
+		return 0
+	}
+
+	return totalValue / float64(totalVolume)
+}
+
 func copyMap(original map[string]float64) map[string]float64 {
 	newMap := make(map[string]float64)
+	for key, value := range original {
+		newMap[key] = value
+	}
+	return newMap
+}
+
+func copyIntMap(original map[string]int) map[string]int {
+	newMap := make(map[string]int)
 	for key, value := range original {
 		newMap[key] = value
 	}
@@ -114,4 +170,9 @@ func copyMap(original map[string]float64) map[string]float64 {
 type PriceEntry struct {
 	time   time.Time
 	prices map[string]float64
+}
+
+type VolumeEntry struct {
+	time    time.Time
+	volumes map[string]int
 }
